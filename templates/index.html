@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Updater</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-section {
+            margin-bottom: 20px;
+        }
+        .preview-section {
+            display: none;
+            margin-top: 20px;
+        }
+        .preview-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .preview-images {
+            flex: 1;
+            max-width: 600px;
+            position: relative;
+        }
+        .preview-image {
+            max-width: 100%;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            display: none;
+        }
+        .preview-image.active {
+            display: block;
+        }
+        .nav-button {
+            padding: 10px 15px;
+            font-size: 18px;
+            border: none;
+            background: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .nav-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .page-info {
+            text-align: center;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #cccccc;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quote Updater</h1>
+        
+        <div class="upload-section">
+            <h2>Upload PDFs</h2>
+            <form id="uploadForm">
+                <div>
+                    <label for="oldPdf">Old Order Form (with Addendum):</label><br>
+                    <input type="file" id="oldPdf" name="oldPdf" accept=".pdf" required>
+                </div>
+                <br>
+                <div>
+                    <label for="newPdf">New Order Form:</label><br>
+                    <input type="file" id="newPdf" name="newPdf" accept=".pdf" required>
+                </div>
+                <br>
+                <button type="submit">Process PDFs</button>
+            </form>
+        </div>
+
+        <div class="loading">
+            Processing PDFs... Please wait...
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <div class="preview-section" id="previewSection">
+            <h2>Preview</h2>
+            <div class="quote-info" style="margin-bottom: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 5px;">
+                <div><strong>New Order Form Quote:</strong> <span id="newQuote" style="color: #2196F3;">-</span></div>
+                <div><strong>Addendum Quote to Replace:</strong> <span id="addendumQuote" style="color: #F44336;">-</span></div>
+            </div>
+            <div class="preview-container">
+                <button id="prevPage" class="nav-button" disabled>&lt;</button>
+                <div id="previewImages" class="preview-images"></div>
+                <button id="nextPage" class="nav-button" disabled>&gt;</button>
+            </div>
+            <div class="page-info">
+                Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+            </div>
+            <button onclick="downloadPdf()">Download Final PDF</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('oldPdf', document.getElementById('oldPdf').files[0]);
+            formData.append('newPdf', document.getElementById('newPdf').files[0]);
+            
+            document.querySelector('.loading').style.display = 'block';
+            document.getElementById('error').textContent = '';
+            document.getElementById('previewSection').style.display = 'none';
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update quote information
+                document.getElementById('newQuote').textContent = data.new_quote || 'Not found';
+                document.getElementById('addendumQuote').textContent = data.addendum_quote || 'Not found';
+
+                // Show previews
+                const previewContainer = document.getElementById('previewImages');
+                const prevButton = document.getElementById('prevPage');
+                const nextButton = document.getElementById('nextPage');
+                const currentPageSpan = document.getElementById('currentPage');
+                const totalPagesSpan = document.getElementById('totalPages');
+                
+                // Clear previous preview
+                previewContainer.innerHTML = '';
+                
+                // Add each preview image
+                data.preview_images.forEach((imgPath, index) => {
+                    const img = document.createElement('img');
+                    img.src = imgPath;
+                    img.className = index === 0 ? 'preview-image active' : 'preview-image';
+                    previewContainer.appendChild(img);
+                });
+                
+                // Initialize page navigation
+                let currentPage = 1;
+                const totalPages = data.preview_images.length;
+                
+                // Update display
+                currentPageSpan.textContent = currentPage;
+                totalPagesSpan.textContent = totalPages;
+                updateNavigationButtons();
+                
+                // Add event listeners
+                prevButton.onclick = () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        updatePreview();
+                    }
+                };
+                
+                nextButton.onclick = () => {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        updatePreview();
+                    }
+                };
+                
+                function updatePreview() {
+                    // Update active image
+                    const images = previewContainer.getElementsByTagName('img');
+                    Array.from(images).forEach((img, index) => {
+                        img.className = index === currentPage - 1 ? 'preview-image active' : 'preview-image';
+                    });
+                    
+                    // Update page counter
+                    currentPageSpan.textContent = currentPage;
+                    updateNavigationButtons();
+                }
+                
+                function updateNavigationButtons() {
+                    prevButton.disabled = currentPage === 1;
+                    nextButton.disabled = currentPage === totalPages;
+                }
+                
+                document.getElementById('previewSection').style.display = 'block';
+                
+            } catch (error) {
+                document.getElementById('error').textContent = error.message;
+            } finally {
+                document.querySelector('.loading').style.display = 'none';
+            }
+        };
+
+        async function downloadPdf() {
+            try {
+                const response = await fetch('/download');
+                if (!response.ok) {
+                    throw new Error('Failed to download PDF');
+                }
+                
+                // Get the filename from the Content-Disposition header
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'processed_agreement.pdf';
+                if (contentDisposition) {
+                    const match = contentDisposition.match(/filename="(.+)"/i);
+                    if (match) {
+                        filename = match[1];
+                    }
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+            } catch (error) {
+                document.getElementById('error').textContent = error.message;
+            }
+        }
+    </script>
+</body>
+</html>
