@@ -64,6 +64,14 @@ def extract_quote_number(pdf_bytes):
             return match.group(0)
     return None
 
+def find_addendum_start(reader):
+    """Find the page where the addendum starts."""
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text().lower()
+        if 'addendum' in text:
+            return i
+    return None
+
 def process_pdfs(old_pdf_bytes, new_pdf_bytes):
     """Process the PDFs to create the final document."""
     print("\nStarting PDF processing...")
@@ -110,12 +118,11 @@ def process_pdfs(old_pdf_bytes, new_pdf_bytes):
         writer.add_page(new_reader.pages[i])
         print(f"Added new order form page {i+1}")
     
-    # Step 2: Add addendum pages, skipping the last page of old order form
+    # Step 2: Add addendum pages, skipping the old order form
     print("\nStep 2: Adding addendum pages")
     for i in range(order_form_end + 1, len(old_reader.pages)):
-        page = old_reader.pages[i]
-        writer.add_page(page)
-        print(f"Added page {i}")
+        writer.add_page(old_reader.pages[i])
+        print(f"Added addendum page {i+1}")
     
     print(f"\nFinal document has {len(writer.pages)} pages")
     

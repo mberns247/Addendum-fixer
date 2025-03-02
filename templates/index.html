@@ -6,11 +6,12 @@
     <title>Quote Updater</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: #46da8d;
+            min-height: 100vh;
         }
         .container {
             background-color: white;
@@ -20,6 +21,59 @@
         }
         .upload-section {
             margin-bottom: 20px;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 25px;
+            text-align: center;
+            margin: 15px 0;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .drop-zone.dragover {
+            border-color: #46da8d;
+            background: #e8f5e9;
+        }
+
+        .drop-zone p {
+            margin: 0;
+            color: #666;
+        }
+
+        .file-input-wrapper {
+            margin: 15px 0;
+        }
+
+        .file-input-wrapper label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-button {
+            display: inline-block;
+            padding: 8px 15px;
+            background: #46da8d;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .custom-file-button:hover {
+            background: #3bc77d;
         }
         .preview-section {
             display: none;
@@ -50,10 +104,15 @@
             padding: 10px 15px;
             font-size: 18px;
             border: none;
-            background: #4CAF50;
+            background: #10432E;
             color: white;
             border-radius: 4px;
             cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+        
+        .nav-button:hover:not(:disabled) {
+            opacity: 0.9;
         }
         .nav-button:disabled {
             background: #cccccc;
@@ -64,13 +123,22 @@
             font-size: 16px;
             margin: 10px 0;
         }
-        button {
-            background-color: #4CAF50;
+        .submit-button {
+            background-color: #10432E;
             color: white;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            width: 100%;
+            margin-top: 20px;
+            transition: opacity 0.2s ease;
+        }
+
+        .submit-button:hover {
+            opacity: 0.9;
         }
         button:disabled {
             background-color: #cccccc;
@@ -87,22 +155,31 @@
 </head>
 <body>
     <div class="container">
-        <h1>Quote Updater</h1>
+        <h1>Nonstandard Repackaging Portal</h1>
         
         <div class="upload-section">
-            <h2>Upload PDFs</h2>
             <form id="uploadForm">
-                <div>
-                    <label for="oldPdf">Old Order Form (with Addendum):</label><br>
-                    <input type="file" id="oldPdf" name="oldPdf" accept=".pdf" required>
+                <div class="file-input-wrapper">
+                    <label>Old Order Form (with Addendum)</label>
+                    <div class="drop-zone" id="oldPdfZone">
+                        <p>Drag & drop your file here or</p>
+                        <label class="custom-file-button" for="oldPdf">Choose File</label>
+                        <input type="file" id="oldPdf" name="oldPdf" accept=".pdf" required>
+                        <p class="selected-file"></p>
+                    </div>
                 </div>
-                <br>
-                <div>
-                    <label for="newPdf">New Order Form:</label><br>
-                    <input type="file" id="newPdf" name="newPdf" accept=".pdf" required>
+
+                <div class="file-input-wrapper">
+                    <label>New Order Form</label>
+                    <div class="drop-zone" id="newPdfZone">
+                        <p>Drag & drop your file here or</p>
+                        <label class="custom-file-button" for="newPdf">Choose File</label>
+                        <input type="file" id="newPdf" name="newPdf" accept=".pdf" required>
+                        <p class="selected-file"></p>
+                    </div>
                 </div>
-                <br>
-                <button type="submit">Process PDFs</button>
+
+                <button type="submit" class="submit-button">Process Files</button>
             </form>
         </div>
 
@@ -126,11 +203,50 @@
             <div class="page-info">
                 Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
             </div>
-            <button onclick="downloadPdf()">Download Final PDF</button>
+            <button onclick="downloadPdf()" class="submit-button">Download Final PDF</button>
         </div>
     </div>
 
     <script>
+        // Drag and drop functionality
+        function setupDropZone(zone, input) {
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === 'application/pdf') {
+                    input.files = e.dataTransfer.files;
+                    updateFileName(input);
+                }
+            });
+
+            input.addEventListener('change', () => {
+                updateFileName(input);
+            });
+        }
+
+        function updateFileName(input) {
+            const fileInfo = input.closest('.drop-zone').querySelector('.selected-file');
+            if (input.files.length > 0) {
+                fileInfo.textContent = input.files[0].name;
+            } else {
+                fileInfo.textContent = '';
+            }
+        }
+
+        // Setup drop zones
+        setupDropZone(document.getElementById('oldPdfZone'), document.getElementById('oldPdf'));
+        setupDropZone(document.getElementById('newPdfZone'), document.getElementById('newPdf'));
+
         document.getElementById('uploadForm').onsubmit = async (e) => {
             e.preventDefault();
             
