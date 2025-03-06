@@ -87,6 +87,11 @@ def process_pdfs(old_pdf_bytes, new_pdf_bytes):
     else:
         print("Could not find company name")
     
+    # Extract quote numbers
+    new_quote = extract_quote_number(new_pdf_bytes)
+    if not new_quote:
+        raise ValueError("Could not find quote number in new order form")
+    
     # Create PDF writer for final document
     writer = PdfWriter()
     
@@ -118,10 +123,71 @@ def process_pdfs(old_pdf_bytes, new_pdf_bytes):
         writer.add_page(new_reader.pages[i])
         print(f"Added new order form page {i+1}")
     
-    # Step 2: Add addendum pages, skipping the old order form
-    print("\nStep 2: Adding addendum pages")
+    # Step 2: Add addendum pages with updated quote number
+    print("\nStep 2: Adding addendum pages with updated quote number")
     for i in range(order_form_end + 1, len(old_reader.pages)):
-        writer.add_page(old_reader.pages[i])
+        page = old_reader.pages[i]
+        page_text = page.extract_text()
+        
+        # Check if this page contains the quote number
+        if "ADDENDUM TO QUOTE:" in page_text:
+            old_quote_match = re.search(r'Q\d{6}', page_text)
+            if old_quote_match:
+                # Create a new layer for the quote number replacement
+                packet = BytesIO()
+                can = canvas.Canvas(packet, pagesize=letter)
+                
+                # Get the page dimensions and convert to float
+                page_width = float(page.mediabox[2])
+                page_height = float(page.mediabox[3])
+                
+                # Extract text objects to find quote number position
+                old_quote_pos = old_quote_match.start()
+                old_quote_end = old_quote_match.end()
+                text_before = page_text[:old_quote_pos]
+                
+                # Find the line containing the quote number
+                lines = text_before.split('\n')
+                quote_line = None
+                line_number = 0
+                
+                for i, line in enumerate(lines):
+                    if 'ADDENDUM TO QUOTE:' in line:
+                        quote_line = line
+                        line_number = float(i)  # Convert to float
+                        break
+                
+                if quote_line:
+                    # Calculate vertical position (from top of page)
+                    y_pos = page_height - (line_number * 14.0) - 74.0  # Convert all numbers to float
+                    
+                    # Calculate horizontal position
+                    quote_index = float(quote_line.find('QUOTE:') + 6)  # Convert to float
+                    x_pos = (quote_index * 7.0) + 90.0  # Convert all numbers to float
+                    
+                    # Create white rectangle to cover old quote
+                    can.setFillColor('white')
+                    can.rect(x_pos - 12, y_pos - 4, 90, 20, fill=1)
+                    
+                    # Draw new quote number
+                    can.setFillColor('black')
+                    can.setFont('Helvetica-Bold', 12)
+                    can.drawString(x_pos + 3, y_pos - 1, new_quote)
+                else:
+                    # Fallback positioning if we can't find the exact line
+                    x_pos = page_width * 0.6
+                    y_pos = page_height * 0.8
+                    can.setFont('Helvetica-Bold', 12)
+                    can.drawString(x_pos, y_pos, new_quote)
+                
+                can.save()
+                packet.seek(0)
+                
+                # Create new page with overlay
+                new_pdf = PdfReader(packet)
+                page.merge_page(new_pdf.pages[0])
+        
+        writer.add_page(page)
         print(f"Added addendum page {i+1}")
     
     print(f"\nFinal document has {len(writer.pages)} pages")
@@ -247,4 +313,4 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     os.makedirs('uploads', exist_ok=True)
     os.makedirs(app.config['TEMP_FOLDER'], exist_ok=True)
-    app.run(port=8000, debug=True)
+    app.run(port=8105, debug=True)
